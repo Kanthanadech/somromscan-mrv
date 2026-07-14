@@ -24,8 +24,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_expected = db.query(func.sum(Project.expected_reduction_tco2_year)).scalar() or 0
     
     # Trees with carbon data
-    trees_with_carbon = db.query(Tree).filter(Tree.co2_kg.isnot(None)).all()
-    total_co2_measured = sum(t.co2_kg or 0 for t in trees_with_carbon) / 1000  # tonnes
+    total_co2_measured = (db.query(func.sum(Tree.co2_kg)).filter(Tree.co2_kg.isnot(None)).scalar() or 0) / 1000  # tonnes
     
     # Verification status
     overdue_events = (
@@ -47,15 +46,12 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         .count()
     )
     
-    # Projects by status
+    # Projects by status / forest type (single pass over one query)
     status_counts = {}
-    for project in db.query(Project).all():
+    type_counts = {}
+    for project in db.query(Project.status, Project.forest_type).all():
         s = project.status.value if hasattr(project.status, 'value') else project.status
         status_counts[s] = status_counts.get(s, 0) + 1
-    
-    # Projects by forest type
-    type_counts = {}
-    for project in db.query(Project).all():
         ft = project.forest_type.value if hasattr(project.forest_type, 'value') else project.forest_type
         type_counts[ft] = type_counts.get(ft, 0) + 1
     

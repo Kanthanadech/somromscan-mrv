@@ -1,10 +1,11 @@
 """Projects CRUD API"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
-from database import get_db, Project, ProjectStatus, ForestType, User, VerificationEvent
+from database import get_db, Project, ProjectStatus, ForestType, User, VerificationEvent, Tree
 from auth import get_current_user
 
 router = APIRouter()
@@ -27,7 +28,7 @@ class ProjectCreate(BaseModel):
     notes: Optional[str] = None
 
 
-def project_to_dict(p: Project) -> dict:
+def project_to_dict(p: Project, trees_count: Optional[int] = None, verification_events_count: Optional[int] = None) -> dict:
     days_to_verification = None
     if p.next_verification_due:
         delta = p.next_verification_due - datetime.utcnow()
@@ -63,8 +64,11 @@ def project_to_dict(p: Project) -> dict:
         "notes": p.notes,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "owner_id": p.owner_id,
-        "trees_count": len(p.trees) if p.trees else 0,
-        "verification_events_count": len(p.verification_events) if p.verification_events else 0,
+        "trees_count": trees_count if trees_count is not None else (len(p.trees) if p.trees else 0),
+        "verification_events_count": (
+            verification_events_count if verification_events_count is not None
+            else (len(p.verification_events) if p.verification_events else 0)
+        ),
     }
 
 
@@ -84,7 +88,25 @@ def list_projects(
         query = query.filter(Project.province == province)
     
     projects = query.all()
-    return [project_to_dict(p) for p in projects]
+    project_ids = [p.id for p in projects]
+
+    trees_counts = dict(
+        db.query(Tree.project_id, func.count(Tree.id))
+        .filter(Tree.project_id.in_(project_ids))
+        .group_by(Tree.project_id)
+        .all()
+    ) if project_ids else {}
+    ve_counts = dict(
+        db.query(VerificationEvent.project_id, func.count(VerificationEvent.id))
+        .filter(VerificationEvent.project_id.in_(project_ids))
+        .group_by(VerificationEvent.project_id)
+        .all()
+    ) if project_ids else {}
+
+    return [
+        project_to_dict(p, trees_counts.get(p.id, 0), ve_counts.get(p.id, 0))
+        for p in projects
+    ]
 
 
 @router.post("")
