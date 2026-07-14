@@ -76,6 +76,11 @@ export const api = {
     },
   },
 
+  sensorPlan: {
+    calculate: (input: SensorPlanRequest) =>
+      request<SensorPlanResult>('/api/sensor-plan', { method: 'POST', body: JSON.stringify(input) }),
+  },
+
   vvb: {
     list: () => request<VVB[]>('/api/vvb'),
     match: (projectId: number) => request<VVBMatchResult>(`/api/vvb/match/${projectId}`),
@@ -140,6 +145,35 @@ export interface SensorInput {
   height_m?: number
   tier?: string
   confidence_score?: number
+}
+
+export interface SensorPlanSpecies {
+  name: string
+  treeCount: number
+}
+
+export interface SensorPlanRequest {
+  plotAreaRai?: number
+  plotAreaM2?: number
+  species: SensorPlanSpecies[]
+  config?: {
+    mode?: 'coverage' | 'perTrees'
+    coverageRadiusM?: number
+    gridFactor?: number
+    treesPerSensor?: number
+  }
+}
+
+export interface SensorPlanResult {
+  totalSensors: number
+  spacingM: number
+  perSpecies: { name: string; treeCount: number; sensors: number }[]
+  assumptions: {
+    mode: string
+    coverageRadiusM: number
+    gridFactor: number
+    treesPerSensor: number
+  }
 }
 
 export interface SensorReading {

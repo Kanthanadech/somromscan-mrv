@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { api, SensorReading, Project } from '@/lib/api'
-import { Activity, AlertTriangle, Wifi, BarChart2, Filter } from 'lucide-react'
+import { api, SensorReading, Project, SensorPlanResult } from '@/lib/api'
+import { Activity, AlertTriangle, Wifi, BarChart2, Filter, Calculator, Plus, X } from 'lucide-react'
 
 export default function SensorsPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -9,6 +9,14 @@ export default function SensorsPage() {
   const [selectedProject, setSelectedProject] = useState<number | null>(null)
   const [anomaliesOnly, setAnomaliesOnly] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Sensor planning
+  const [planAreaRai, setPlanAreaRai] = useState('')
+  const [planMode, setPlanMode] = useState<'coverage' | 'perTrees'>('coverage')
+  const [planSpecies, setPlanSpecies] = useState([{ name: '', treeCount: '' }])
+  const [planResult, setPlanResult] = useState<SensorPlanResult | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planError, setPlanError] = useState('')
 
   useEffect(() => {
     api.projects.list().then(setProjects)
@@ -20,7 +28,40 @@ export default function SensorsPage() {
     api.sensors.projectReadings(selectedProject, anomaliesOnly)
       .then(setReadings)
       .finally(() => setLoading(false))
-  }, [selectedProject, anomaliesOnly])
+    const project = projects.find(p => p.id === selectedProject)
+    if (project?.area_rai) setPlanAreaRai(String(project.area_rai))
+    setPlanResult(null)
+    setPlanError('')
+  }, [selectedProject, anomaliesOnly, projects])
+
+  const addSpeciesRow = () => setPlanSpecies(rows => [...rows, { name: '', treeCount: '' }])
+  const removeSpeciesRow = (i: number) => setPlanSpecies(rows => rows.filter((_, idx) => idx !== i))
+  const updateSpeciesRow = (i: number, field: 'name' | 'treeCount', value: string) =>
+    setPlanSpecies(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
+
+  const calculateSensorPlan = async () => {
+    setPlanError('')
+    const area = parseFloat(planAreaRai)
+    if (!area || area <= 0) { setPlanError('กรุณากรอกพื้นที่แปลง (ไร่)'); return }
+    const species = planSpecies
+      .filter(s => s.name.trim())
+      .map(s => ({ name: s.name.trim(), treeCount: parseInt(s.treeCount) || 0 }))
+    if (species.length === 0) { setPlanError('กรุณากรอกอย่างน้อย 1 ชนิดพืช'); return }
+
+    setPlanLoading(true)
+    try {
+      const result = await api.sensorPlan.calculate({
+        plotAreaRai: area,
+        species,
+        config: { mode: planMode },
+      })
+      setPlanResult(result)
+    } catch (e: any) {
+      setPlanError(e.message || 'คำนวณไม่สำเร็จ')
+    } finally {
+      setPlanLoading(false)
+    }
+  }
 
   const TIER_LABELS: Record<string, string> = {
     arcore: '📱 ARCore',
@@ -55,6 +96,117 @@ export default function SensorsPage() {
           Anomalies เท่านั้น
         </button>
       </div>
+
+      {/* Sensor Planning */}
+      {selectedProject && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+          <h2 className="flex items-center gap-2 font-bold text-[#1F3D2E] mb-4">
+            <Calculator className="w-5 h-5" /> วางแผนจำนวน/ตำแหน่งเซนเซอร์
+          </h2>
+
+          <div className="flex gap-3 mb-4 flex-wrap items-end">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">พื้นที่แปลง (ไร่)</label>
+              <input
+                type="number" min={0} step={0.1}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm w-40 focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={planAreaRai} onChange={e => setPlanAreaRai(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => setPlanMode('coverage')}
+              className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                planMode === 'coverage' ? 'bg-[#1F3D2E] text-white border-[#1F3D2E]' : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              ตามพื้นที่ครอบคลุม
+            </button>
+            <button
+              onClick={() => setPlanMode('perTrees')}
+              className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                planMode === 'perTrees' ? 'bg-[#1F3D2E] text-white border-[#1F3D2E]' : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              ตามจำนวนต้น
+            </button>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            <label className="block text-xs text-gray-500">ชนิดพืชและจำนวนต้น</label>
+            {planSpecies.map((row, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="เช่น ทุเรียน" value={row.name}
+                  onChange={e => updateSpeciesRow(i, 'name', e.target.value)}
+                />
+                <input
+                  type="number" min={0}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm w-32 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="จำนวนต้น" value={row.treeCount}
+                  onChange={e => updateSpeciesRow(i, 'treeCount', e.target.value)}
+                />
+                {planSpecies.length > 1 && (
+                  <button onClick={() => removeSpeciesRow(i)} className="p-2 text-gray-400 hover:text-red-500">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button onClick={addSpeciesRow} className="flex items-center gap-1.5 text-sm text-[#1F3D2E] font-medium hover:opacity-70">
+              <Plus className="w-4 h-4" /> เพิ่มชนิดพืช
+            </button>
+          </div>
+
+          {planError && (
+            <div className="p-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm mb-4">{planError}</div>
+          )}
+
+          <button
+            onClick={calculateSensorPlan} disabled={planLoading}
+            className="px-6 py-2.5 rounded-xl text-white text-sm font-semibold bg-[#1F3D2E] hover:opacity-90 disabled:opacity-60"
+          >
+            {planLoading ? 'กำลังคำนวณ...' : 'คำนวณแผนเซนเซอร์'}
+          </button>
+
+          {planResult && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                {[
+                  { label: 'จำนวนเซนเซอร์ทั้งหมด', value: `${planResult.totalSensors} เครื่อง` },
+                  { label: 'ระยะห่างระหว่างเซนเซอร์', value: `${planResult.spacingM} ม.` },
+                  { label: 'โหมดคำนวณ', value: planResult.assumptions.mode === 'coverage' ? 'ตามพื้นที่ครอบคลุม' : 'ตามจำนวนต้น' },
+                ].map(s => (
+                  <div key={s.label} className="rounded-xl p-4 bg-white border border-gray-100">
+                    <div className="text-2xl font-bold text-gray-900">{s.value}</div>
+                    <div className="text-sm text-gray-500 mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#1F3D2E] text-white">
+                      {['ชนิดพืช', 'จำนวนต้น', 'จำนวนเซนเซอร์'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {planResult.perSpecies.map((p, i) => (
+                      <tr key={p.name} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-4 py-2.5 text-gray-700">{p.name}</td>
+                        <td className="px-4 py-2.5 text-gray-700">{p.treeCount.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{p.sensors}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Summary */}
       {readings.length > 0 && (
