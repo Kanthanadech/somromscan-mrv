@@ -227,6 +227,17 @@ def seed():
     db.commit()
     print(f"✅ Sensor readings: {db.query(SR).count()}")
 
+    # ===== VVB Organizations =====
+    # Must run before Verification Events: events below reference vvb_id by
+    # the auto-assigned VVB ids (1, 5, ...), and Postgres enforces that FK
+    # (SQLite does not by default, so this ordering bug was silent in dev).
+    from database import VVBOrganization as VVBO
+    if db.query(VVBO).count() == 0:
+        for data in VVB_SEED_DATA:
+            db.add(VVBO(**data))
+        db.commit()
+    print(f"✅ VVB Organizations: {db.query(VVBO).count()}")
+
     # ===== Verification Events =====
     from database import VerificationEvent as VE
     events = [
@@ -253,14 +264,6 @@ def seed():
                       completed_date=due if estatus=="completed" else None))
     db.commit()
     print(f"✅ Verification events: {db.query(VE).count()}")
-
-    # ===== VVB Organizations =====
-    from database import VVBOrganization as VVBO
-    if db.query(VVBO).count() == 0:
-        for data in VVB_SEED_DATA:
-            db.add(VVBO(**data))
-        db.commit()
-    print(f"✅ VVB Organizations: {db.query(VVBO).count()}")
 
     print("\n🎉 Seed complete!")
     print(f"   Projects: {db.query(Project).count()}")
