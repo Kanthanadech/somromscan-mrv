@@ -7,6 +7,10 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: SECRET_KEY
-        value: somromscan-mrv-secret-2569
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://somromscan-mrv.vercel.app,http://localhost:3000
       - key: PYTHON_VERSION
         value: 3.11.0

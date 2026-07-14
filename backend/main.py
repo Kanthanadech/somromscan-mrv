@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+import os
 import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from database import engine, Base, get_db
 from routers import projects, sensors, allometric, verification, vvb, reports, dashboard
@@ -27,9 +31,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "https://somromscan-mrv.vercel.app,http://localhost:3000",
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
