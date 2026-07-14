@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import engine, Base, get_db
-from routers import projects, sensors, allometric, verification, vvb, reports, dashboard
+from routers import projects, sensors, allometric, verification, vvb, reports, dashboard, sensor_plan
 from auth import get_current_user
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.include_router(allometric.router, prefix="/api/allometric", tags=["Allometri
 app.include_router(verification.router, prefix="/api/verification", tags=["Verification"])
 app.include_router(vvb.router, prefix="/api/vvb", tags=["VVB Matching"])
 app.include_router(reports.router, prefix="/api/reports", tags=["MRV Reports"])
+app.include_router(sensor_plan.router, prefix="/api/sensor-plan", tags=["Sensor Planning"])
 
 @app.get("/")
 def root():
