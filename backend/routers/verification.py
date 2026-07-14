@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
-from database import get_db, VerificationEvent, Project, Alert
+from database import get_db, VerificationEvent, Project, Alert, User
+from auth import require_role
 
 router = APIRouter()
 
@@ -141,6 +142,7 @@ def schedule_verification(
     due_date: Optional[str] = None,
     vvb_id: Optional[int] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("vvb", "tgo_admin")),
 ):
     """กำหนดวันทวนสอบใหม่"""
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -182,6 +184,7 @@ def complete_verification(
     cars_count: int = 0,
     notes: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("vvb", "tgo_admin")),
 ):
     """บันทึกผลการทวนสอบ"""
     event = db.query(VerificationEvent).filter(VerificationEvent.id == event_id).first()

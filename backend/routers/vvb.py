@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from database import get_db, VVBOrganization, Project, VVBAssignment
+from database import get_db, VVBOrganization, Project, VVBAssignment, User
+from auth import require_role
 
 router = APIRouter()
 
@@ -309,6 +310,7 @@ def assign_vvb(
     project_id: int,
     vvb_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("farmer", "group_leader", "tgo_admin")),
 ):
     """บันทึกการเลือก VVB"""
     project = db.query(Project).filter(Project.id == project_id).first()

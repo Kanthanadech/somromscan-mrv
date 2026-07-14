@@ -6,8 +6,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
     ...options,
   })
   if (!res.ok) {
@@ -19,6 +24,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // ===== Dashboard =====
 export const api = {
+  auth: {
+    login: (email: string, password: string, role: string) =>
+      request<LoginResponse>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, role }),
+      }),
+  },
+
   dashboard: {
     stats: () => request<DashboardStats>('/api/dashboard/stats'),
     carbonTrend: (projectId?: number) =>
@@ -145,6 +158,18 @@ export interface SensorInput {
   height_m?: number
   tier?: string
   confidence_score?: number
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  user: {
+    id: number
+    name: string
+    email: string
+    role: string
+    organization?: string
+  }
 }
 
 export interface SensorPlanSpecies {

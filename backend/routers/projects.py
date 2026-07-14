@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 from database import get_db, Project, ProjectStatus, ForestType, User, VerificationEvent, Tree
-from auth import get_current_user
+from auth import get_current_user, require_role
 
 router = APIRouter()
 
@@ -113,6 +113,7 @@ def list_projects(
 def create_project(
     data: ProjectCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("farmer", "group_leader", "tgo_admin")),
 ):
     # Calculate area in hectares
     area_ha = data.area_rai * 0.16  # 1 ไร่ = 0.16 เฮกตาร์
@@ -149,7 +150,7 @@ def create_project(
         next_verification_due=next_verification,
         notes=data.notes,
         status=ProjectStatus.DRAFT,
-        owner_id=1,  # Default owner until auth implemented
+        owner_id=current_user.id,
     )
     db.add(project)
     db.commit()
@@ -182,6 +183,7 @@ def update_project_status(
     project_id: int,
     status: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("tgo_admin")),
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -201,7 +203,11 @@ def update_project_status(
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: int, db: Session = Depends(get_db)):
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("tgo_admin")),
+):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="ไม่พบโครงการ")

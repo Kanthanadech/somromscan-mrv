@@ -1,5 +1,6 @@
 'use client'
 import { createContext, useContext, useEffect, useState } from 'react'
+import { api } from './api'
 
 export type UserRole = 'farmer' | 'buyer' | 'vvb' | 'tgo_admin'
 
@@ -26,30 +27,6 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
 })
 
-// Demo users per role — based on realistic T-VER participants
-const DEMO_USERS: Record<string, AuthUser & { password: string }> = {
-  'farmer@somromscan.th': {
-    id: 1, name: 'สมชาย ใจดี', email: 'farmer@somromscan.th',
-    role: 'farmer', organization: 'กลุ่มเกษตรกรสวนสมรมเกาะยอ จ.สงขลา',
-    password: 'password123',
-  },
-  'buyer@ptt.co.th': {
-    id: 4, name: 'ดร.วิภา สุทธิรักษ์', email: 'buyer@ptt.co.th',
-    role: 'buyer', organization: 'บริษัท ปตท. จำกัด (มหาชน) — ฝ่ายความยั่งยืน',
-    password: 'password123',
-  },
-  'vvb@psu.ac.th': {
-    id: 2, name: 'รศ.ดร.ประพันธ์ สมาน', email: 'vvb@psu.ac.th',
-    role: 'vvb', organization: 'ศูนย์บริการตรวจสอบฯ คณะวิทยาศาสตร์ ม.สงขลานครินทร์',
-    password: 'password123',
-  },
-  'tgo@tgo.or.th': {
-    id: 3, name: 'นายพิสุทธิ์ ชัยเกษม', email: 'tgo@tgo.or.th',
-    role: 'tgo_admin', organization: 'องค์การบริหารจัดการก๊าซเรือนกระจก (อบก.)',
-    password: 'password123',
-  },
-}
-
 const ROLE_CREDENTIALS: Record<UserRole, { email: string; hint: string }> = {
   farmer: { email: 'farmer@somromscan.th', hint: 'password123' },
   buyer: { email: 'buyer@ptt.co.th', hint: 'password123' },
@@ -65,26 +42,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('auth_user')
-    if (saved) {
+    const token = localStorage.getItem('auth_token')
+    if (saved && token) {
       try { setUser(JSON.parse(saved)) } catch {}
     }
     setIsLoading(false)
   }, [])
 
   const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    const found = DEMO_USERS[email.toLowerCase()]
-    if (found && found.password === password && found.role === role) {
-      const { password: _, ...userData } = found
+    try {
+      const res = await api.auth.login(email, password, role)
+      const userData: AuthUser = {
+        id: res.user.id,
+        name: res.user.name,
+        email: res.user.email,
+        role: res.user.role as UserRole,
+        organization: res.user.organization,
+      }
       setUser(userData)
       localStorage.setItem('auth_user', JSON.stringify(userData))
+      localStorage.setItem('auth_token', res.access_token)
       return true
+    } catch {
+      return false
     }
-    return false
   }
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem('auth_user')
+    localStorage.removeItem('auth_token')
   }
 
   return (

@@ -2,12 +2,13 @@
 from database import SessionLocal, Base, engine, Project, Tree, SensorReading, VerificationEvent, User, VVBOrganization
 from datetime import datetime, timedelta
 from routers.vvb import VVB_SEED_DATA
-import random, math, hashlib
+from auth import get_password_hash
+import random, math
 
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()
 
-def _hash(p): return hashlib.sha256(p.encode()).hexdigest()
+def _hash(p): return get_password_hash(p)
 def days(n): return datetime.utcnow() + timedelta(days=n)
 
 def seed():
@@ -264,6 +265,20 @@ def seed():
                       completed_date=due if estatus=="completed" else None))
     db.commit()
     print(f"✅ Verification events: {db.query(VE).count()}")
+
+    # ===== Fix Postgres id sequences =====
+    # Users/Projects above are inserted with explicit ids; on Postgres this
+    # leaves the auto-increment sequence at 1, so the next INSERT without an
+    # explicit id collides with an existing row. SQLite doesn't need this
+    # (its autoincrement just tracks max(rowid)).
+    if "postgresql" in str(engine.url):
+        from sqlalchemy import text
+        for table in ["users", "projects"]:
+            db.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 1))"
+            ))
+        db.commit()
+        print("✅ Postgres id sequences synced (users, projects)")
 
     print("\n🎉 Seed complete!")
     print(f"   Projects: {db.query(Project).count()}")

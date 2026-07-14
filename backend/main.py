@@ -3,20 +3,24 @@ SomromScan v2 — MRV Platform Backend
 FastAPI + SQLite (dev) / PostgreSQL (prod)
 """
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import os
 import uvicorn
 from dotenv import load_dotenv
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 load_dotenv()
 
 from database import engine, Base, get_db
-from routers import projects, sensors, allometric, verification, vvb, reports, dashboard, sensor_plan
+from routers import projects, sensors, allometric, verification, vvb, reports, dashboard, sensor_plan, auth as auth_router
 from auth import get_current_user
+from rate_limit import limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +34,21 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
+
 
 CORS_ORIGINS = os.getenv(
     "CORS_ORIGINS",
@@ -45,6 +64,7 @@ app.add_middleware(
 )
 
 # Mount all routers
+app.include_router(auth_router.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(sensors.router, prefix="/api/sensors", tags=["Sensors"])

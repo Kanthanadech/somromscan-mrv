@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from database import get_db, SensorReading, Tree, Project
+from database import get_db, SensorReading, Tree, Project, User
+from auth import require_role
 import math
 
 router = APIRouter()
@@ -57,7 +58,11 @@ def detect_anomaly(reading: SensorInput, db: Session) -> tuple[bool, str]:
 
 
 @router.post("")
-def add_sensor_reading(data: SensorInput, db: Session = Depends(get_db)):
+def add_sensor_reading(
+    data: SensorInput,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("farmer", "group_leader", "tgo_admin")),
+):
     # Calculate carbon if DBH available
     agb_kg = None
     co2_kg = None

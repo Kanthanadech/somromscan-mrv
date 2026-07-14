@@ -11,5 +11,6 @@ pandas==2.2.3
 scikit-learn==1.6.1
 python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
-bcrypt==5.0.0
+bcrypt==4.0.1
 pytest==8.3.4
+slowapi==0.1.9
