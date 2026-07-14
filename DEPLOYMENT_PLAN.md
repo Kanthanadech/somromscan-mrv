@@ -38,28 +38,34 @@ Frontend ต้องมี:
 
 ## 3. Checklist ตามเฟส
 
-### Phase 1 — เตรียม backend deploy-ready (ไม่แตะ UI)
-- [ ] เพิ่ม env var `CORS_ORIGINS` แทน hardcode `*`, ใส่ทั้ง prod Vercel origin + localhost
-- [ ] ย้าย `SECRET_KEY` ออกจาก root `render.yaml` (ห้าม commit ค่าเป็น plaintext) → ใช้ `sync: false` หรือใส่ผ่าน dashboard
-- [ ] สร้าง `.env.example` (backend) ครบ: `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`
-- [ ] ยืนยัน `GET /health` (มีอยู่แล้ว `main.py:56-58`) — ใช้ได้เลย ไม่ต้องเพิ่ม
-- [ ] ยืนยัน start command อ่าน `$PORT` (มีอยู่แล้วใน Procfile/railway.json) — ใช้ได้เลย
+### Phase 1 — เตรียม backend deploy-ready (ไม่แตะ UI) ✅ เสร็จแล้ว
+- [x] เพิ่ม env var `CORS_ORIGINS` แทน hardcode `*`, ใส่ทั้ง prod Vercel origin + localhost
+- [x] ย้าย `SECRET_KEY` ออกจาก root `render.yaml` (ห้าม commit ค่าเป็น plaintext) → ใช้ `sync: false` + ใส่ผ่าน dashboard
+- [x] สร้าง `.env.example` (backend + frontend) ครบ: `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`, `NEXT_PUBLIC_API_URL`
+- [x] ยืนยัน `GET /health` — ใช้ได้เลย ไม่ต้องเพิ่ม
+- [x] ยืนยัน start command อ่าน `$PORT` — ใช้ได้เลย
+- [x] ลบ `frontend/.env.local` ออกจาก git tracking + เพิ่มใน `.gitignore`
 
-### Phase 2 — Database production
-- [ ] เลือก managed Postgres (Neon แนะนำ — free tier, serverless)
-- [ ] ตั้ง `DATABASE_URL` เป็น env var, รัน `Base.metadata.create_all` (มี lifespan hook อยู่แล้ว `main.py:17-21`) หรือใช้ Alembic migration
-- [ ] รัน `backend/seed.py` กับ DB ใหม่เพื่อ seed 5 บัญชี demo + โครงการตัวอย่าง 10 โครงการ
-- [ ] **ต้องแก้ hash mismatch ก่อน** ถ้าจะทำ login endpoint จริง (seed ใช้ sha256, auth.py ใช้ bcrypt)
+### Phase 2 — Database production ✅ เสร็จแล้ว
+- [x] เลือก managed Postgres → ใช้ **Neon** ตามแผน
+- [x] ตั้ง `DATABASE_URL` เป็น env var, รัน `Base.metadata.create_all` บน Neon จริง — สร้างครบ 10 ตาราง
+- [x] รัน `backend/seed.py` บน Neon จริง — Users 5, Projects 10, Trees 1,188, Sensor readings 2,439, VVB 6, Verification events 15
+- [x] เจอบั๊ก FK ordering จริง (Verification Events อ้าง vvb_id ก่อน VVB Organizations ถูก seed — SQLite ไม่ enforce FK แต่ Postgres enforce) แก้แล้วโดยย้ายลำดับใน `seed.py`
+- [x] ไล่เช็ค SQLite-specific SQL แล้ว ไม่พบปัญหาอื่น (`func.sum` เป็น ORM-level, `.strftime()` เป็น Python-level ไม่ใช่ SQL)
+- [ ] hash mismatch (seed ใช้ sha256, auth.py ใช้ bcrypt) — ยังไม่แก้ ตกลงกันว่าจะทำพร้อม Phase 6 login endpoint จริง
 
-### Phase 3 — Deploy backend
-- [ ] เสนอ Render (มี `render.yaml` เตรียมไว้แล้วที่ root) เป็นตัวเลือกหลัก เพราะมีคอนฟิกพร้อมอยู่แล้ว
-- [ ] ตั้ง env vars บน dashboard, รัน seed
-- [ ] เช็ค `https://<backend-url>/health` ตอบ 200
+### Phase 3 — Deploy backend ✅ เสร็จแล้ว
+- [x] Deploy ผ่าน Render Blueprint (`render.yaml`) → https://somromscan-backend.onrender.com
+- [x] แก้ `render.yaml` เพิ่ม `plan: free` ชัดเจน (กันเผลอสร้าง paid instance — ตอนแรก Render ขอผูกบัตร เพราะไม่ระบุ plan)
+- [x] เพิ่ม `pool_pre_ping=True`, `pool_recycle=300` ใน `database.py` กัน Neon connection หลุดตอน idle/autosuspend
+- [x] ตั้ง env vars บน dashboard (`SECRET_KEY` สุ่มใหม่, `DATABASE_URL` แบบ pooled connection จาก Neon)
+- [x] ยืนยัน `/health` ตอบ 200 บน URL จริง + ทดสอบ `/api/dashboard/stats`, `/api/projects`, `/api/vvb`, CORS behavior ทั้งหมดผ่าน
 
-### Phase 4 — เชื่อม Vercel
-- [ ] ตั้ง `NEXT_PUBLIC_API_URL` ใน Vercel dashboard → ชี้ backend URL จริง (ไม่แก้โค้ด ไม่แตะ UI)
-- [ ] ลบ `frontend/.env.local` ออกจาก git tracking (เก็บไว้ local เฉย ๆ)
-- [ ] Redeploy frontend แล้วทดสอบ end-to-end ทั้ง 4 portal
+### Phase 4 — เชื่อม Vercel ✅ เสร็จแล้ว (รอ user คลิกทดสอบจริงในเบราว์เซอร์)
+- [x] ตั้ง `NEXT_PUBLIC_API_URL` ใน Vercel dashboard → ชี้ `https://somromscan-backend.onrender.com` (ไม่แก้โค้ด ไม่แตะ UI)
+- [x] Redeploy frontend แล้วตรวจสอบ build bundle จริง — ยืนยันแล้วว่า JS ที่ deploy เรียก `onrender.com` ไม่มี `localhost` หลงเหลือ
+- [x] ทดสอบ core flow ผ่าน API โดยตรง (คำนวณคาร์บอน, verification calendar, VVB matching, monitoring report) — ทำงานถูกต้องทั้งหมด
+- [ ] ทดสอบ end-to-end จริงในเบราว์เซอร์ทั้ง 4 portal (login 4 บัญชี demo) — รอ user ยืนยัน เพราะไม่มีเครื่องมือควบคุมเบราว์เซอร์ในฝั่งนี้
 
 ### Phase 5 — ฟีเจอร์ใหม่ระบบคำนวณเซนเซอร์
 - [ ] เขียนฟังก์ชันคำนวณ + unit tests (edge cases: 0 ต้น, ชนิดเดียว, พื้นที่เล็ก/ใหญ่, largest-remainder rounding)
