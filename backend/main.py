@@ -18,7 +18,7 @@ from slowapi.errors import RateLimitExceeded
 load_dotenv()
 
 from database import engine, Base, get_db
-from routers import projects, sensors, allometric, verification, vvb, reports, dashboard, sensor_plan, auth as auth_router
+from routers import projects, sensors, allometric, verification, vvb, reports, dashboard, sensor_plan, auth as auth_router, map as map_router
 from auth import get_current_user
 from rate_limit import limiter
 
@@ -73,6 +73,7 @@ app.include_router(verification.router, prefix="/api/verification", tags=["Verif
 app.include_router(vvb.router, prefix="/api/vvb", tags=["VVB Matching"])
 app.include_router(reports.router, prefix="/api/reports", tags=["MRV Reports"])
 app.include_router(sensor_plan.router, prefix="/api/sensor-plan", tags=["Sensor Planning"])
+app.include_router(map_router.router, prefix="/api/map", tags=["Map"])
 
 @app.get("/")
 def root():
