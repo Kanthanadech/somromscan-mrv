@@ -1,13 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { api, Project, STATUS_LABELS, STATUS_COLORS, FOREST_TYPE_LABELS } from '@/lib/api'
+import dynamic from 'next/dynamic'
+import { api, Project, MapTree, STATUS_LABELS, STATUS_COLORS, FOREST_TYPE_LABELS } from '@/lib/api'
 import {
   ArrowLeft, TreePine, MapPin, Calendar, Leaf, Activity,
-  FileText, Clock, AlertTriangle, CheckCircle2, BarChart3, Users
+  FileText, Clock, AlertTriangle, CheckCircle2, BarChart3, Users, Map as MapIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { DBH_CLASS_COLORS, DBH_CLASS_LABELS } from '@/components/dbhClassStyle'
+
+const ProjectMap = dynamic(() => import('@/components/ProjectMap'), { ssr: false })
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -16,7 +20,12 @@ export default function ProjectDetailPage() {
   const [readings, setReadings] = useState<any[]>([])
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'sensors' | 'carbon' | 'verification'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'sensors' | 'carbon' | 'verification' | 'map'>('overview')
+
+  const [mapTrees, setMapTrees] = useState<MapTree[]>([])
+  const [mapSpeciesOptions, setMapSpeciesOptions] = useState<string[]>([])
+  const [mapLoading, setMapLoading] = useState(false)
+  const [mapFilters, setMapFilters] = useState({ species: '', dbh_class: '', status: '' })
 
   const id = parseInt(params.id as string)
 
@@ -37,6 +46,21 @@ export default function ProjectDetailPage() {
     setReport(r)
     setActiveTab('carbon')
   }
+
+  useEffect(() => {
+    if (activeTab !== 'map' || !project) return
+    setMapLoading(true)
+    const params: any = { project_id: project.id }
+    if (mapFilters.species) params.species = mapFilters.species
+    if (mapFilters.dbh_class) params.dbh_class = mapFilters.dbh_class
+    if (mapFilters.status) params.status = mapFilters.status
+    api.map.trees(params).then(data => {
+      setMapTrees(data)
+      if (mapSpeciesOptions.length === 0) {
+        setMapSpeciesOptions(Array.from(new Set(data.map(t => t.species_common).filter(Boolean))) as string[])
+      }
+    }).finally(() => setMapLoading(false))
+  }, [activeTab, project, mapFilters])
 
   if (loading) return (
     <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg)' }}>
@@ -147,6 +171,7 @@ export default function ProjectDetailPage() {
             { id: 'sensors', label: 'Sensor & Growth', icon: Activity },
             { id: 'carbon', label: 'Carbon Report', icon: Leaf },
             { id: 'verification', label: 'Verification', icon: Calendar },
+            { id: 'map', label: 'แผนที่', icon: MapIcon },
           ].map(tab => {
             const Icon = tab.icon
             return (
@@ -315,6 +340,70 @@ export default function ProjectDetailPage() {
               style={{ background: '#2C5F2D' }}>
               <Users className="w-4 h-4" /> ไปหน้าจับคู่ VVB
             </Link>
+          </div>
+        )}
+
+        {/* Map Tab */}
+        {activeTab === 'map' && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border p-6" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+              <h3 className="font-bold text-lg mb-1" style={{ color: 'var(--text-primary)' }}>แผนที่ต้นไม้ในโครงการ</h3>
+              <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>ปักหมุดตามพิกัดจริง สีตามช่วง DBH — ใช้ตรวจสอบย้อนกลับถึงแปลงจริง (VVB spot-check)</p>
+
+              {/* Filters */}
+              <div className="flex gap-3 mb-4 flex-wrap">
+                <select
+                  className="px-4 py-2.5 rounded-xl border text-sm"
+                  style={{ background: 'var(--input-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  value={mapFilters.species}
+                  onChange={e => setMapFilters(f => ({ ...f, species: e.target.value }))}
+                >
+                  <option value="">ทุกชนิดพืช</option>
+                  {mapSpeciesOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select
+                  className="px-4 py-2.5 rounded-xl border text-sm"
+                  style={{ background: 'var(--input-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  value={mapFilters.dbh_class}
+                  onChange={e => setMapFilters(f => ({ ...f, dbh_class: e.target.value }))}
+                >
+                  <option value="">ทุกช่วง DBH</option>
+                  {Object.entries(DBH_CLASS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <select
+                  className="px-4 py-2.5 rounded-xl border text-sm"
+                  style={{ background: 'var(--input-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  value={mapFilters.status}
+                  onChange={e => setMapFilters(f => ({ ...f, status: e.target.value }))}
+                >
+                  <option value="">ทุกสถานะ</option>
+                  <option value="alive">มีชีวิต</option>
+                  <option value="dead">ตาย</option>
+                </select>
+              </div>
+
+              {/* Legend */}
+              <div className="flex gap-4 mb-4 flex-wrap">
+                {Object.entries(DBH_CLASS_LABELS).map(([k, label]) => (
+                  <div key={k} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <span className="w-3 h-3 rounded-full inline-block border" style={{ background: DBH_CLASS_COLORS[k], borderColor: 'var(--border-color)' }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              {mapLoading ? (
+                <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>กำลังโหลดแผนที่...</div>
+              ) : project.latitude && project.longitude ? (
+                <ProjectMap trees={mapTrees} centerLat={project.latitude} centerLng={project.longitude} />
+              ) : (
+                <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>โครงการนี้ยังไม่มีพิกัดศูนย์กลาง</div>
+              )}
+
+              <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+                แสดง {mapTrees.length.toLocaleString()} ต้น
+              </div>
+            </div>
           </div>
         )}
       </div>

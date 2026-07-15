@@ -94,6 +94,13 @@ export const api = {
       request<SensorPlanResult>('/api/sensor-plan', { method: 'POST', body: JSON.stringify(input) }),
   },
 
+  map: {
+    trees: (params: { project_id: number; species?: string; dbh_class?: string; status?: string }) => {
+      const q = new URLSearchParams(params as unknown as Record<string, string>).toString()
+      return request<MapTree[]>(`/api/map/trees?${q}`)
+    },
+  },
+
   vvb: {
     list: () => request<VVB[]>('/api/vvb'),
     match: (projectId: number) => request<VVBMatchResult>(`/api/vvb/match/${projectId}`),
@@ -158,6 +165,18 @@ export interface SensorInput {
   height_m?: number
   tier?: string
   confidence_score?: number
+}
+
+export interface MapTree {
+  id: number
+  lat: number
+  lng: number
+  species_common: string | null
+  dbh_cm: number | null
+  dbhClass: string | null
+  co2_kg: number | null
+  status: string
+  project_id: number
 }
 
 export interface LoginResponse {
