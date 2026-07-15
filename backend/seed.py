@@ -11,6 +11,14 @@ db = SessionLocal()
 def _hash(p): return get_password_hash(p)
 def days(n): return datetime.utcnow() + timedelta(days=n)
 
+# Random jitter box (degrees) applied around a project's single center point to
+# scatter its trees on the map. Kept small deliberately: projects are seeded
+# with one lat/lng, not a real plot polygon, and coastal/mangrove projects sit
+# right at the shoreline — too wide a jitter box randomly drops "trees" into
+# open water. 0.006 deg =~ 650m radius, still visibly spread out but far less
+# likely to cross a coastline than the original 0.02 deg (~2.2km).
+TREE_COORD_JITTER_DEG = 0.006
+
 def seed():
     print("🌱 Seeding SomromScan v2 with real TGO Registry data...")
 
@@ -192,8 +200,8 @@ def seed():
                 allometric_equation_name="Chave 2014 Pantropical",
                 allometric_equation_source="Global Change Biology 20(10):3177-3190",
                 plot_number=(i//20)+1, is_sample_plot=(i%20==0),
-                latitude=(project.latitude or 13)+random.uniform(-0.02,0.02) if project.latitude else None,
-                longitude=(project.longitude or 100)+random.uniform(-0.02,0.02) if project.longitude else None,
+                latitude=(project.latitude or 13)+random.uniform(-TREE_COORD_JITTER_DEG,TREE_COORD_JITTER_DEG) if project.latitude else None,
+                longitude=(project.longitude or 100)+random.uniform(-TREE_COORD_JITTER_DEG,TREE_COORD_JITTER_DEG) if project.longitude else None,
                 species_confidence=round(random.uniform(78,99),1),
                 status="alive" if random.random()>0.02 else "dead",
             ))
