@@ -93,6 +93,10 @@ Multi-criteria matching (methodology, scope, region, capacity, rating) ระห
 ### 6. MRV Report Generator
 สร้าง Monitoring Report ตาม T-VER-S-F005-MR จากข้อมูล sensor readings + tree measurements พร้อม buffer deduction
 
+### 7. GIS Map View
+แผนที่ต้นไม้รายต้นในแต่ละโครงการ (tab "แผนที่" ในหน้ารายละเอียดโครงการ) ปักหมุดตามพิกัดจริง สีตาม DBH class (4 ช่วง), filter ชนิดพืช/DBH/สถานะ, สลับ base layer (ภาพถ่ายดาวเทียม ESRI / ถนน OSM / ภูมิประเทศ OpenTopoMap), marker clustering กันหน่วงเมื่อหมุดเยอะ — ใช้ตรวจสอบย้อนกลับถึงแปลงจริงสำหรับ VVB spot-check
+> **ข้อจำกัดที่ทราบอยู่**: พิกัดศูนย์กลางของแต่ละโครงการใน `seed.py` เป็นค่าประมาณระดับอำเภอ/จังหวัด ไม่ใช่พิกัดแปลงสำรวจจริง (อบก. ไม่เปิดเผยพิกัดแปลงที่แม่นยำต่อสาธารณะ ค้นหาแล้วไม่พบแหล่งข้อมูลที่ยืนยันได้) โครงการชายฝั่ง/ป่าชายเลนบางโครงการจึงอาจแสดงหมุดในเขตชุมชนใกล้ชายฝั่งแทนที่จะเป็นพื้นที่จริง ให้ถือเป็นข้อมูลสาธิต ไม่ใช่ข้อมูลสำรวจ
+
 ## API Endpoints
 
 | Method | Path | Auth | Description |
@@ -113,6 +117,7 @@ Multi-criteria matching (methodology, scope, region, capacity, rating) ระห
 | GET | /api/vvb/match/{project_id} | Public | จับคู่ VVB |
 | POST | /api/vvb/assign | farmer/group_leader/tgo_admin | เลือก VVB ให้โครงการ |
 | GET | /api/reports/monitoring/{project_id} | Public | สร้างรายงาน |
+| GET | /api/map/trees | Public | ต้นไม้พร้อมพิกัดสำหรับแผนที่ (filter: project_id, species, dbh_class, status) |
 
 ## Deploy
 

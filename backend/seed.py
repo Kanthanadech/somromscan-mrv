@@ -1,4 +1,15 @@
-"""Seed demo data — projects from TGO Registry (real data 2024-2025)"""
+"""
+Seed demo data — projects from TGO Registry (real data 2024-2025)
+
+Known limitation: each project's lat/lng below is an approximate
+province/district-level point, not a surveyed plot boundary — TGO
+doesn't publish precise site coordinates for registered projects, and
+web search turned up no authoritative source for any of them either
+(checked project #1, BCPG mangrove/Ban Chang). For coastal/mangrove
+projects this can place the point (and jittered tree coordinates) on
+built-up land near the coast rather than the actual site. Treat these
+as illustrative demo coordinates, not surveyed data.
+"""
 from database import SessionLocal, Base, engine, Project, Tree, SensorReading, VerificationEvent, User, VVBOrganization
 from datetime import datetime, timedelta
 from routers.vvb import VVB_SEED_DATA
