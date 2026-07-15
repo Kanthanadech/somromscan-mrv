@@ -10,6 +10,7 @@ import {
 import Link from 'next/link'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { DBH_CLASS_COLORS, DBH_CLASS_LABELS } from '@/components/dbhClassStyle'
+import { generateSensorGrid } from '@/lib/sensorGrid'
 
 const ProjectMap = dynamic(() => import('@/components/ProjectMap'), { ssr: false })
 
@@ -23,9 +24,11 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'sensors' | 'carbon' | 'verification' | 'map'>('overview')
 
   const [mapTrees, setMapTrees] = useState<MapTree[]>([])
+  const [allTreesForPlan, setAllTreesForPlan] = useState<MapTree[]>([])
   const [mapSpeciesOptions, setMapSpeciesOptions] = useState<string[]>([])
   const [mapLoading, setMapLoading] = useState(false)
   const [mapFilters, setMapFilters] = useState({ species: '', dbh_class: '', status: '' })
+  const [sensorPlanSummary, setSensorPlanSummary] = useState<{ totalSensors: number; spacingM: number } | null>(null)
 
   const id = parseInt(params.id as string)
 
@@ -58,9 +61,30 @@ export default function ProjectDetailPage() {
       setMapTrees(data)
       if (mapSpeciesOptions.length === 0) {
         setMapSpeciesOptions(Array.from(new Set(data.map(t => t.species_common).filter(Boolean))) as string[])
+        setAllTreesForPlan(data)
       }
     }).finally(() => setMapLoading(false))
   }, [activeTab, project, mapFilters])
+
+  // Phase 3: illustrative sensor-plan overlay — calculate once we know the
+  // project's real species/tree-count breakdown, using the same
+  // /api/sensor-plan endpoint from the Sensor Data page.
+  useEffect(() => {
+    if (!project || allTreesForPlan.length === 0 || sensorPlanSummary || !project.area_rai) return
+    const speciesCounts: Record<string, number> = {}
+    for (const t of allTreesForPlan) {
+      const name = t.species_common || 'ไม่ระบุ'
+      speciesCounts[name] = (speciesCounts[name] || 0) + 1
+    }
+    const species = Object.entries(speciesCounts).map(([name, treeCount]) => ({ name, treeCount }))
+    api.sensorPlan.calculate({ plotAreaRai: project.area_rai, species }).then(result => {
+      setSensorPlanSummary({ totalSensors: result.totalSensors, spacingM: result.spacingM })
+    })
+  }, [project, allTreesForPlan, sensorPlanSummary])
+
+  const sensorGridPoints = (project && project.latitude && project.longitude && sensorPlanSummary)
+    ? generateSensorGrid(project.latitude, project.longitude, sensorPlanSummary.spacingM)
+    : []
 
   if (loading) return (
     <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg)' }}>
@@ -395,9 +419,15 @@ export default function ProjectDetailPage() {
               {mapLoading ? (
                 <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>กำลังโหลดแผนที่...</div>
               ) : project.latitude && project.longitude ? (
-                <ProjectMap trees={mapTrees} centerLat={project.latitude} centerLng={project.longitude} />
+                <ProjectMap trees={mapTrees} centerLat={project.latitude} centerLng={project.longitude} sensorPoints={sensorGridPoints} />
               ) : (
                 <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>โครงการนี้ยังไม่มีพิกัดศูนย์กลาง</div>
+              )}
+
+              {sensorPlanSummary && (
+                <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+                  ระบบแนะนำติดตั้งเซนเซอร์ {sensorPlanSummary.totalSensors.toLocaleString()} เครื่อง ระยะห่าง {sensorPlanSummary.spacingM} ม. — เปิดชั้น "ตำแหน่งเซนเซอร์แนะนำ" ที่มุมขวาบนของแผนที่เพื่อดูตัวอย่างตำแหน่ง (รายละเอียดเพิ่มเติมที่หน้า Sensor Data)
+                </div>
               )}
 
               <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>

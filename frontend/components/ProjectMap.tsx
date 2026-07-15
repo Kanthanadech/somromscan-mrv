@@ -6,6 +6,11 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapTree } from '@/lib/api'
 import { DBH_CLASS_COLORS } from './dbhClassStyle'
+import { SensorGridPoint } from '@/lib/sensorGrid'
+
+// Reuses the app's existing blue accent (#1E4D8C) — same color already used
+// for the "Sensor readings" KPI on the project detail page — no new colors.
+const SENSOR_POINT_COLOR = '#1E4D8C'
 
 function dotIcon(color: string) {
   return L.divIcon({
@@ -13,6 +18,15 @@ function dotIcon(color: string) {
     html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
+  })
+}
+
+function sensorIcon() {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:12px;height:12px;background:${SENSOR_POINT_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.4);transform:rotate(45deg);"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
   })
 }
 
@@ -33,10 +47,12 @@ export default function ProjectMap({
   trees,
   centerLat,
   centerLng,
+  sensorPoints,
 }: {
   trees: MapTree[]
   centerLat: number
   centerLng: number
+  sensorPoints?: SensorGridPoint[]
 }) {
   const icons = useMemo(() => {
     const cache: Record<string, L.DivIcon> = {}
@@ -44,6 +60,8 @@ export default function ProjectMap({
     cache.default = dotIcon('#6B7C72')
     return cache
   }, [])
+
+  const sensorMarkerIcon = useMemo(() => sensorIcon(), [])
 
   const fallbackCenter: [number, number] = [centerLat, centerLng]
 
@@ -73,6 +91,19 @@ export default function ProjectMap({
             url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
+        {sensorPoints && sensorPoints.length > 0 && (
+          <LayersControl.Overlay name={`ตำแหน่งเซนเซอร์แนะนำ (ตัวอย่าง, ${sensorPoints.length} จุด)`}>
+            <>
+              {sensorPoints.map((p, i) => (
+                <Marker key={`sensor-${i}`} position={[p.lat, p.lng]} icon={sensorMarkerIcon}>
+                  <Popup>
+                    <div style={{ fontSize: '13px' }}>ตำแหน่งเซนเซอร์แนะนำ (ตัวอย่างจาก sensor-plan)</div>
+                  </Popup>
+                </Marker>
+              ))}
+            </>
+          </LayersControl.Overlay>
+        )}
       </LayersControl>
       <FitBounds trees={trees} fallbackCenter={fallbackCenter} />
       <MarkerClusterGroup chunkedLoading>
