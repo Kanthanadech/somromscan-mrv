@@ -148,6 +148,7 @@ def seed():
              expected_reduction_tco2_year=620.0,total_issued_tco2=0.0,buffer_percentage=15.0,
              verification_cycle_years=2,next_verification_due=days(200),
              last_monitoring_date=None,owner_id=1,
+             baseline_tco2_year=40.0,leakage_tco2_year=25.0,
              co_benefits={"biodiversity":True,"water":True,"community":True},
              sdg_indicators=[2,13,15],
              notes="โครงการ pilot ของ SomromScan v2 MRV Platform ใช้ sensor IoT + ARCore + Allometric AI"),

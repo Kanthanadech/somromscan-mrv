@@ -17,6 +17,14 @@ DBH_CLASS_BOUNDS: dict[str, tuple[float, Optional[float]]] = {
     "class4": (30, None),
 }
 
+# Thai display labels for report generation (PDD/Validation/Monitoring tables).
+DBH_CLASS_LABELS_TH: dict[str, str] = {
+    "class1": "ช่วงที่ 1 (< 10 ซม.)",
+    "class2": "ช่วงที่ 2 (10 – <20 ซม.)",
+    "class3": "ช่วงที่ 3 (20 – <30 ซม.)",
+    "class4": "ช่วงที่ 4 (≥ 30 ซม.)",
+}
+
 
 def classify_dbh(dbh_cm: Optional[float]) -> Optional[str]:
     """Return the DBH class label for a given dbh_cm, or None if dbh_cm is None/unclassifiable."""

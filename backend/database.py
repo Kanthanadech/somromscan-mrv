@@ -108,6 +108,12 @@ class Project(Base):
     total_issued_tco2 = Column(Float, default=0)
     buffer_percentage = Column(Float, default=15.0)
 
+    # Baseline / leakage (GHG_BSL, GHG_LK) — editable per-project assumptions
+    # used in PDD/Validation/Monitoring report generation. Default 0 until a
+    # real baseline study or leakage assessment sets a value.
+    baseline_tco2_year = Column(Float, default=0)
+    leakage_tco2_year = Column(Float, default=0)
+
     # Monitoring
     last_monitoring_date = Column(DateTime)
     next_verification_due = Column(DateTime)
