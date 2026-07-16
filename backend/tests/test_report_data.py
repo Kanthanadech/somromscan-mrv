@@ -84,6 +84,25 @@ class TestNetGhg:
         result = compute_net_ghg(300, 50, 20)
         assert result["ghg_net"] == 300 - 50 - 20
 
+    def test_net_floored_at_zero_when_baseline_and_leakage_exceed_removals(self):
+        result = compute_net_ghg(10, 40, 25)
+        assert result["ghg_net"] == 0
+        assert result["net_was_floored"] is True
+        assert result["net_floor_note"] is not None
+        assert "0" in result["net_floor_note"]
+
+    def test_net_not_floored_when_positive(self):
+        result = compute_net_ghg(1120, 40, 25)
+        assert result["net_was_floored"] is False
+        assert result["net_floor_note"] is None
+
+    def test_net_exactly_zero_not_flagged_as_floored(self):
+        # raw_net == 0 exactly: nothing was clamped, so this shouldn't be
+        # reported as a floor event even though ghg_net is also 0.
+        result = compute_net_ghg(65, 40, 25)
+        assert result["ghg_net"] == 0
+        assert result["net_was_floored"] is False
+
 
 class TestYearlyProjection:
     def test_flat_value_every_year(self):

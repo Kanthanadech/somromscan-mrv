@@ -9,3 +9,4 @@ backend/venv/
 .env.*.local
 backend/.env
 frontend/.env.local
+sample_reports/

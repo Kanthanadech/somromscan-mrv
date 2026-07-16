@@ -17,6 +17,16 @@ THAI_MONTHS = [
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ]
 
+FOREST_TYPE_LABELS_TH: dict[str, str] = {
+    "somrom": "สวนสมรม/วนเกษตร (ภาคป่าไม้และการเกษตร)",
+    "rubber": "ยางพารา (ภาคเกษตร)",
+    "mangrove": "ป่าชายเลน",
+    "community": "ป่าชุมชน",
+    "restoration": "ป่าปลูก/ฟื้นฟูป่า",
+    "mixed": "ป่าผสม",
+    "palm": "ปาล์มน้ำมัน (ภาคเกษตร)",
+}
+
 
 def to_buddhist_year(year_ce: int) -> int:
     return year_ce + 543
@@ -75,12 +85,19 @@ def compute_survival_rate(trees: list[TreeLike]) -> dict:
 def compute_net_ghg(project_removals_tco2: float, baseline_tco2_year: float, leakage_tco2_year: float) -> dict:
     baseline = baseline_tco2_year or 0
     leakage = leakage_tco2_year or 0
-    net = project_removals_tco2 - baseline - leakage
+    raw_net = project_removals_tco2 - baseline - leakage
+    net = max(raw_net, 0)
     return {
         "ghg_proj": round(project_removals_tco2, 3),
         "ghg_bsl": round(baseline, 3),
         "ghg_lk": round(leakage, 3),
         "ghg_net": round(net, 3),
+        "net_was_floored": raw_net < 0,
+        "net_floor_note": (
+            f"หมายเหตุ: baseline + leakage ({round(baseline + leakage, 3)} tCO2eq) "
+            f"มากกว่าปริมาณกักเก็บของโครงการ ({round(project_removals_tco2, 3)} tCO2eq) "
+            "ปริมาณสุทธิที่แสดงถูกปรับเป็น 0 (ไม่ติดลบ)"
+        ) if raw_net < 0 else None,
     }
 
 
@@ -153,6 +170,14 @@ def report_data(project_id: int, report_type: str, db) -> dict:
         .order_by(VerificationEvent.created_at.desc())
         .first()
     )
+    # Monitoring cycle number = how many verification-type events this
+    # project has had so far (not the VerificationEvent.id, which is a
+    # global auto-increment PK shared across all projects).
+    verification_cycle_count = (
+        db.query(VerificationEvent)
+        .filter(VerificationEvent.project_id == project_id, VerificationEvent.event_type == "verification")
+        .count()
+    )
 
     owner_org = project.owner.organization if project.owner else None
     owner_name = project.owner.name if project.owner else None
@@ -170,6 +195,10 @@ def report_data(project_id: int, report_type: str, db) -> dict:
             "name_th": project.name_th,
             "tgo_registration_number": project.tgo_registration_number or "รอขึ้นทะเบียน",
             "forest_type": project.forest_type,
+            "forest_type_label": FOREST_TYPE_LABELS_TH.get(
+                project.forest_type.value if hasattr(project.forest_type, "value") else project.forest_type,
+                str(project.forest_type),
+            ),
             "methodology": project.methodology,
             "province": project.province,
             "district": project.district,
@@ -204,7 +233,7 @@ def report_data(project_id: int, report_type: str, db) -> dict:
         },
 
         "verification": {
-            "cycle_number": latest_verification.id if latest_verification else 1,
+            "cycle_number": max(verification_cycle_count, 1),
             "status": latest_verification.status if latest_verification else "scheduled",
             "cars_count": latest_verification.cars_count if latest_verification else 0,
             "fars_count": latest_verification.fars_count if latest_verification else 0,
