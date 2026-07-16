@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { api, Project, MapTree, STATUS_LABELS, STATUS_COLORS, FOREST_TYPE_LABELS } from '@/lib/api'
+import { api, Project, MapTree, STATUS_LABELS, STATUS_COLORS, FOREST_TYPE_LABELS, TVerReportType } from '@/lib/api'
 import {
   ArrowLeft, TreePine, MapPin, Calendar, Leaf, Activity,
-  FileText, Clock, AlertTriangle, CheckCircle2, BarChart3, Users, Map as MapIcon
+  FileText, Clock, AlertTriangle, CheckCircle2, BarChart3, Users, Map as MapIcon,
+  Download, Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
@@ -30,7 +31,25 @@ export default function ProjectDetailPage() {
   const [mapFilters, setMapFilters] = useState({ species: '', dbh_class: '', status: '' })
   const [sensorPlanSummary, setSensorPlanSummary] = useState<{ totalSensors: number; spacingM: number } | null>(null)
 
+  const [tverReportType, setTverReportType] = useState<TVerReportType>('pdd')
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
   const id = parseInt(params.id as string)
+
+  const downloadTVerReport = async (format: 'docx' | 'pdf') => {
+    const key = `${tverReportType}-${format}`
+    setDownloadingKey(key)
+    setDownloadError(null)
+    try {
+      if (format === 'docx') await api.reports.downloadDocx(id, tverReportType)
+      else await api.reports.downloadPdf(id, tverReportType)
+    } catch (e: any) {
+      setDownloadError(e?.message || 'ดาวน์โหลดไม่สำเร็จ')
+    } finally {
+      setDownloadingKey(null)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -302,7 +321,47 @@ export default function ProjectDetailPage() {
 
         {/* Carbon Tab */}
         {activeTab === 'carbon' && (
-          <div>
+          <div className="space-y-6">
+            {/* T-VER Report Download */}
+            <div className="rounded-2xl border p-6" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+              <h3 className="font-bold text-lg mb-1" style={{ color: 'var(--text-primary)' }}>ดาวน์โหลดรายงาน T-VER</h3>
+              <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>เลือกประเภทเอกสาร แล้วดาวน์โหลดเป็นไฟล์ Word หรือ PDF ตามรูปแบบ T-VER</p>
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {([
+                  { value: 'pdd', label: 'PDD' },
+                  { value: 'validation', label: 'Validation Report' },
+                  { value: 'monitoring', label: 'Monitoring Report' },
+                ] as { value: TVerReportType; label: string }[]).map(opt => (
+                  <button key={opt.value} onClick={() => setTverReportType(opt.value)}
+                    className="px-4 py-2 rounded-xl text-sm font-medium border-2 transition-all"
+                    style={{
+                      borderColor: tverReportType === opt.value ? '#2C5F2D' : 'var(--border-color)',
+                      background: tverReportType === opt.value ? '#E8F5E9' : 'transparent',
+                      color: tverReportType === opt.value ? '#2C5F2D' : 'var(--text-muted)',
+                    }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3 flex-wrap">
+                {(['docx', 'pdf'] as const).map(format => {
+                  const key = `${tverReportType}-${format}`
+                  const isDownloading = downloadingKey === key
+                  return (
+                    <button key={format} onClick={() => downloadTVerReport(format)} disabled={isDownloading}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-60"
+                      style={{ background: '#2C5F2D', boxShadow: '0 2px 8px rgba(44,95,45,0.3)' }}>
+                      {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      ดาวน์โหลด {format === 'docx' ? 'Word' : 'PDF'}
+                    </button>
+                  )
+                })}
+              </div>
+              {downloadError && (
+                <div className="text-sm mt-3 text-red-700">{downloadError}</div>
+              )}
+            </div>
+
             {report ? (
               <div className="space-y-4">
                 <div className="rounded-2xl border p-6" style={{ background: '#1F3D2E', borderColor: '#2C5F2D' }}>

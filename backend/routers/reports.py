@@ -1,11 +1,32 @@
 """MRV Report Generator"""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from datetime import datetime
-from database import get_db, Project, MonitoringReport, Tree, SensorReading
+import io
 import math
+from datetime import datetime
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
+from database import get_db, Project, MonitoringReport, Tree, SensorReading
+from report_data import report_data, REPORT_TITLES
+from report_docx import generate_docx
+from report_pdf import generate_pdf
 
 router = APIRouter()
+
+REPORT_TYPE_SLUGS = {
+    "pdd": "PDD",
+    "validation": "Validation_Report",
+    "monitoring": "Monitoring_Report",
+}
+
+
+def _content_disposition(ascii_slug: str, thai_name: str, ext: str) -> str:
+    """RFC 5987 filename: ASCII fallback + UTF-8 Thai filename."""
+    ascii_filename = f"{ascii_slug}.{ext}"
+    utf8_filename = quote(f"{thai_name}.{ext}")
+    return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{utf8_filename}"
 
 
 def calc_project_carbon(project: Project, db: Session) -> dict:
@@ -132,6 +153,49 @@ def generate_monitoring_report(project_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return report
+
+
+@router.get("/{report_type}/{project_id}/docx")
+def download_report_docx(report_type: str, project_id: int, db: Session = Depends(get_db)):
+    """ดาวน์โหลดรายงาน T-VER เป็นไฟล์ Word (.docx)"""
+    if report_type not in REPORT_TITLES:
+        raise HTTPException(status_code=400, detail=f"report_type ไม่ถูกต้อง (ต้องเป็นหนึ่งใน {list(REPORT_TITLES.keys())})")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="ไม่พบโครงการ")
+
+    data = report_data(project_id, report_type, db)
+    buf = io.BytesIO()
+    generate_docx(data).save(buf)
+    buf.seek(0)
+
+    thai_name = f"{data['report_title']}_{project.name_th or project.name}"
+    ascii_slug = f"{REPORT_TYPE_SLUGS[report_type]}_project{project_id}"
+    headers = {"Content-Disposition": _content_disposition(ascii_slug, thai_name, "docx")}
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers=headers,
+    )
+
+
+@router.get("/{report_type}/{project_id}/pdf")
+def download_report_pdf(report_type: str, project_id: int, db: Session = Depends(get_db)):
+    """ดาวน์โหลดรายงาน T-VER เป็นไฟล์ PDF"""
+    if report_type not in REPORT_TITLES:
+        raise HTTPException(status_code=400, detail=f"report_type ไม่ถูกต้อง (ต้องเป็นหนึ่งใน {list(REPORT_TITLES.keys())})")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="ไม่พบโครงการ")
+
+    data = report_data(project_id, report_type, db)
+    pdf_bytes = bytes(generate_pdf(data).output())
+    buf = io.BytesIO(pdf_bytes)
+
+    thai_name = f"{data['report_title']}_{project.name_th or project.name}"
+    ascii_slug = f"{REPORT_TYPE_SLUGS[report_type]}_project{project_id}"
+    headers = {"Content-Disposition": _content_disposition(ascii_slug, thai_name, "pdf")}
+    return StreamingResponse(buf, media_type="application/pdf", headers=headers)
 
 
 @router.get("/history/{project_id}")

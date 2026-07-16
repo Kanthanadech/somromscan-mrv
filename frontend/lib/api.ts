@@ -5,6 +5,8 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+export type TVerReportType = 'pdd' | 'validation' | 'monitoring'
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
   const res = await fetch(`${API_BASE}${path}`, {
@@ -20,6 +22,35 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(err.detail || 'Request failed')
   }
   return res.json()
+}
+
+function filenameFromContentDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) return decodeURIComponent(utf8Match[1])
+  const asciiMatch = header.match(/filename="?([^";]+)"?/i)
+  return asciiMatch ? asciiMatch[1] : fallback
+}
+
+async function downloadFile(path: string, fallbackFilename: string): Promise<void> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Network error' }))
+    throw new Error(err.detail || 'Download failed')
+  }
+  const blob = await res.blob()
+  const filename = filenameFromContentDisposition(res.headers.get('Content-Disposition'), fallbackFilename)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 // ===== Dashboard =====
@@ -113,6 +144,10 @@ export const api = {
       request<MonitoringReport>(`/api/reports/monitoring/${projectId}`),
     history: (projectId: number) =>
       request<MonitoringReport[]>(`/api/reports/history/${projectId}`),
+    downloadDocx: (projectId: number, reportType: TVerReportType) =>
+      downloadFile(`/api/reports/${reportType}/${projectId}/docx`, `${reportType}_project${projectId}.docx`),
+    downloadPdf: (projectId: number, reportType: TVerReportType) =>
+      downloadFile(`/api/reports/${reportType}/${projectId}/pdf`, `${reportType}_project${projectId}.pdf`),
   },
 }
 
