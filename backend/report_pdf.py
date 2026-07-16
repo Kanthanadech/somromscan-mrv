@@ -33,13 +33,13 @@ class ReportPDF(FPDF):
     def heading(self, text, size=13):
         self.ln(2)
         self.set_font(FONT_NAME, "B", size)
-        self.multi_cell(0, 8, text)
+        self.multi_cell(0, 8, text, align="L")
         self.set_font(FONT_NAME, size=11)
         self.ln(1)
 
     def para(self, text, size=11, italic=False):
         self.set_font(FONT_NAME, size=size)
-        self.multi_cell(0, 7, text)
+        self.multi_cell(0, 7, text, align="L")
         self.ln(1)
 
     def kv_table(self, rows):
@@ -49,11 +49,11 @@ class ReportPDF(FPDF):
             y_before = self.get_y()
             x_before = self.get_x()
             self.set_font(FONT_NAME, "B", 10)
-            self.multi_cell(col1_w, 7, str(label), border=1)
+            self.multi_cell(col1_w, 7, str(label), border=1, align="L")
             y_after_col1 = self.get_y()
             self.set_xy(x_before + col1_w, y_before)
             self.set_font(FONT_NAME, size=10)
-            self.multi_cell(col2_w, 7, str(value), border=1)
+            self.multi_cell(col2_w, 7, str(value), border=1, align="L")
             y_after_col2 = self.get_y()
             self.set_y(max(y_after_col1, y_after_col2))
         self.ln(3)
@@ -76,6 +76,12 @@ class ReportPDF(FPDF):
         n = len(labels)
         col_w = self.epw / n
         self.set_font(FONT_NAME, size=10)
+        # Reserve enough room for the whole block (two lines + spacing) so a
+        # page break never lands between the "ลงชื่อ" line and the "(...)"
+        # line below it.
+        block_height = 6 + 12 + 6 + 14
+        if self.get_y() + block_height > self.page_break_trigger:
+            self.add_page()
         y_start = self.get_y()
         for label in labels:
             self.multi_cell(col_w, 6, f"ลงชื่อ ..................... {label}", border=0, align="C", new_x="RIGHT", new_y="TOP")
@@ -90,7 +96,7 @@ class ReportPDF(FPDF):
         self.set_font(FONT_NAME, "B", 13)
         self.cell(0, 8, "SomromScan — แพลตฟอร์ม MRV", new_x="LMARGIN", new_y="NEXT")
         self.set_font(FONT_NAME, size=9)
-        self.multi_cell(0, 6, f"({subtitle})")
+        self.multi_cell(0, 6, f"({subtitle})", align="L")
         self.ln(2)
         self.set_font(FONT_NAME, "B", 15)
         self.cell(0, 9, title, align="C", new_x="LMARGIN", new_y="NEXT")
@@ -101,7 +107,7 @@ class ReportPDF(FPDF):
     def net_note(self, ghg):
         if ghg.get("net_was_floored"):
             self.set_font(FONT_NAME, size=9)
-            self.multi_cell(0, 6, ghg["net_floor_note"])
+            self.multi_cell(0, 6, ghg["net_floor_note"], align="L")
             self.set_font(FONT_NAME, size=11)
             self.ln(1)
 
@@ -226,7 +232,7 @@ def generate_validation_pdf(data: dict) -> ReportPDF:
         )
     else:
         pdf.set_font(FONT_NAME, size=10)
-        pdf.multi_cell(0, 7, data["validation_findings_note"])
+        pdf.multi_cell(0, 7, data["validation_findings_note"], align="L")
         pdf.set_font(FONT_NAME, size=11)
         pdf.ln(3)
 
