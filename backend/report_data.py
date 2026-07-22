@@ -158,6 +158,7 @@ def report_data(project_id: int, report_type: str, db) -> dict:
     vvb_assignment = (
         db.query(VVBAssignment)
         .filter(VVBAssignment.project_id == project_id, VVBAssignment.status == "accepted")
+        .order_by(VVBAssignment.created_at.desc())
         .first()
     )
     vvb_org = None

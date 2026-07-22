@@ -10,6 +10,9 @@ export default function VVBPage() {
   const [matchResult, setMatchResult] = useState<VVBMatchResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingVVB, setLoadingVVB] = useState(true)
+  const [assigningVvbId, setAssigningVvbId] = useState<number | null>(null)
+  const [assignedVvbId, setAssignedVvbId] = useState<number | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([api.projects.list(), api.vvb.list()])
@@ -20,9 +23,24 @@ export default function VVBPage() {
   const handleMatch = async (projectId: number) => {
     setSelectedProject(projectId)
     setLoading(true)
+    setAssignedVvbId(null)
+    setAssignError(null)
     const result = await api.vvb.match(projectId)
     setMatchResult(result)
     setLoading(false)
+  }
+
+  const handleAssign = async (projectId: number, vvbId: number) => {
+    setAssigningVvbId(vvbId)
+    setAssignError(null)
+    try {
+      await api.vvb.assign(projectId, vvbId)
+      setAssignedVvbId(vvbId)
+    } catch (e: any) {
+      setAssignError(e?.message || 'บันทึกการเลือกไม่สำเร็จ')
+    } finally {
+      setAssigningVvbId(null)
+    }
   }
 
   const ScoreBar = ({ score }: { score: number }) => (
@@ -145,14 +163,19 @@ export default function VVBPage() {
                       ติดต่อ VVB
                     </a>
                     <button
-                      onClick={() => api.vvb.assign(matchResult.project_id, vvb.vvb_id)}
-                      className="flex-1 py-2 border-2 border-green-600 text-green-700 text-sm rounded-xl hover:bg-green-50 transition-colors font-medium"
+                      onClick={() => handleAssign(matchResult.project_id, vvb.vvb_id)}
+                      disabled={assigningVvbId === vvb.vvb_id}
+                      className="flex-1 py-2 border-2 border-green-600 text-green-700 text-sm rounded-xl hover:bg-green-50 transition-colors font-medium disabled:opacity-60"
                     >
-                      บันทึกการเลือก
+                      {assigningVvbId === vvb.vvb_id ? 'กำลังบันทึก...' : assignedVvbId === vvb.vvb_id ? '✅ บันทึกแล้ว' : 'บันทึกการเลือก'}
                     </button>
                   </div>
                 </div>
               ))}
+
+              {assignError && (
+                <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{assignError}</div>
+              )}
 
               <p className="text-xs text-gray-400 italic">{matchResult.note}</p>
             </div>
