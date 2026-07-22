@@ -322,15 +322,29 @@ def assign_vvb(
         raise HTTPException(status_code=404, detail="ไม่พบ VVB")
     
     score, reasons = calculate_match_score(vvb, project)
-    
-    assignment = VVBAssignment(
-        project_id=project_id,
-        vvb_id=vvb_id,
-        match_score=score,
-        match_reasons=reasons,
-        status="accepted",
+
+    # A project has at most one accepted VVB assignment — update it in place
+    # instead of inserting a new row (repeated/duplicate assign calls, e.g.
+    # from double-clicks, must not pile up duplicate accepted rows).
+    assignment = (
+        db.query(VVBAssignment)
+        .filter(VVBAssignment.project_id == project_id, VVBAssignment.status == "accepted")
+        .first()
     )
-    db.add(assignment)
+    if assignment:
+        assignment.vvb_id = vvb_id
+        assignment.match_score = score
+        assignment.match_reasons = reasons
+        assignment.created_at = datetime.utcnow()
+    else:
+        assignment = VVBAssignment(
+            project_id=project_id,
+            vvb_id=vvb_id,
+            match_score=score,
+            match_reasons=reasons,
+            status="accepted",
+        )
+        db.add(assignment)
     db.commit()
     
     return {
